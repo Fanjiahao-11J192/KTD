@@ -24,7 +24,7 @@ from torch.nn.modules.loss import CrossEntropyLoss
 from monai.losses import DiceCELoss
 from einops import rearrange
 from models.model_dict import get_model,get_classifier
-from utils.data_us import JointTransform2D, ImageToImage2D
+from utils.data_us import JointTransform2D, ImageToImage2D,CropImageToImage2D
 from utils.loss_functions.sam_loss import get_criterion
 from utils.generate_prompts import get_click_prompt
 from thop import profile
@@ -55,7 +55,7 @@ def main():
     args.encoder_input_size = opt.classifier_size
     args.batch_size = opt.classifier_batch_size
 
-    print("task", args.task, "checkpoints:", opt.load_classifier)
+    print("task", args.task, "checkpoints:", opt.load_classifier_path)
     opt.mode = "val"
     #opt.classes=2
     opt.visual = True
@@ -80,16 +80,16 @@ def main():
     opt.batch_size = args.batch_size * args.n_gpu
 
     tf_val = JointTransform2D(img_size=args.encoder_input_size, low_img_size=args.low_image_size, ori_size=opt.img_size, crop=opt.crop, p_flip=0, color_jitter_params=None, long_mask=True)
-    val_dataset = ImageToImage2D(opt.data_path, opt.test_split, tf_val, img_size=args.encoder_input_size, class_id=1)  # return image, mask, and filename
+    val_dataset = CropImageToImage2D(opt.data_path, opt.test_split, tf_val, img_size=args.encoder_input_size, class_id=1)  # return image, mask, and filename
     valloader = DataLoader(val_dataset, batch_size=opt.batch_size, shuffle=False, num_workers=8, pin_memory=True)
 
     if args.modelname=="SAMed":
         opt.classes=2
-    model = get_classifier(args.modelname, args=args, opt=opt)
+    model = get_classifier(opt=opt)
     model.to(device)
     model.train()
 
-    checkpoint = torch.load(opt.load_path)
+    checkpoint = torch.load(opt.load_classifier_path)
     #------when the load model is saved under multiple GPU
     new_state_dict = {}
     for k,v in checkpoint.items():
@@ -108,10 +108,11 @@ def main():
 
     pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print("Total_params: {}".format(pytorch_total_params))
-    input = torch.randn(1, 1, args.encoder_input_size, args.encoder_input_size).cuda()
+    input = torch.randn(1, 3, args.encoder_input_size, args.encoder_input_size).cuda()
     points = (torch.tensor([[[1, 2]]]).float().cuda(), torch.tensor([[1]]).float().cuda())
-    flops, params = profile(model, inputs=(input, points), )
-    print('Gflops:', flops/1000000000, 'params:', params)
+
+    # flops, params = profile(model, inputs=(input,points))
+    # print('Gflops:', flops/1000000000, 'params:', params)
 
     model.eval()
 
@@ -119,7 +120,7 @@ def main():
 
     f1_scores, accuracy, precision, recall, f1, val_losses = get_eval(valloader, model, criterion=criterion, opt=opt, args=args)
     print("dataset:" + args.task + " -----------model name: "+ args.modelname)
-    print("task", args.task, "checkpoints:", opt.load_path)
+    print("task", args.task, "checkpoints:", opt.load_classifier_path)
     print('f1_scores:',f1_scores)
     print('accuracy:',accuracy)
     print('precision:', precision)
