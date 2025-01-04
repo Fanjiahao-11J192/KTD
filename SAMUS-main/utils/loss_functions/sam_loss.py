@@ -241,7 +241,7 @@ def get_criterion(modelname='SAM', opt=None):
         criterion = DC_and_BCE_loss(classes=opt.classes)
     elif modelname == "MSA":
         criterion = Mask_BCE_loss(pos_weight=pos_weight)
-    elif modelname == "Resnet18" or "Vit":
+    elif modelname == "Resnet18" or modelname == "Vit":
         criterion = Classification_FocalLoss(num_classes=opt.classifier_classes)
     else:
         criterion = Mask_DC_and_BCE_loss(pos_weight=pos_weight)
