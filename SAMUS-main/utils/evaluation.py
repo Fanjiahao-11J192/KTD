@@ -203,7 +203,6 @@ def eval_F_score(valloader, model, criterion, opt, args):
         with torch.no_grad():
             start_time = time.time()
             pred = model(imgs)
-            print(pred)
             sum_time += (time.time() - start_time)
 
         # 计算损失
@@ -631,7 +630,7 @@ def get_eval(valloader, model, criterion, opt, args):
             opt.eval_mode = "camus_samed"
         else:
             opt.eval_mode = "slice"
-    if args.modelname == "Resnet18" or "Vit":
+    if args.modelname == "Resnet18" or args.modelname == "Vit":
         opt.eval_mode = "F-score"
     if opt.eval_mode == "mask_slice":
         return eval_mask_slice2(valloader, model, criterion, opt, args)
