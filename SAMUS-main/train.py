@@ -43,13 +43,17 @@ def main():
     parser.add_argument('--sam_ckpt', type=str, default='checkpoints/sam_vit_b_01ec64.pth', help='Pretrained checkpoint of SAM')
     parser.add_argument('--batch_size', type=int, default=8, help='batch_size per gpu') # SAMed is 12 bs with 2n_gpu and lr is 0.005
     parser.add_argument('--n_gpu', type=int, default=1, help='total gpu')
+    parser.add_argument('--device', type=str, default='cuda', help='cuda or cpu')
     parser.add_argument('--base_lr', type=float, default=0.0005, help='segmentation network learning rate, 0.005 for SAMed, 0.0001 for MSA') #0.0006
     parser.add_argument('--warmup', type=bool, default=False, help='If activated, warp up the learning from a lower lr to the base_lr') 
     parser.add_argument('--warmup_period', type=int, default=250, help='Warp up iterations, only valid whrn warmup is activated')
     parser.add_argument('-keep_log', type=bool, default=False, help='keep the loss&lr&dice during training or not')
 
     args = parser.parse_args()
-    opt = get_config(args.task) 
+    opt = get_config(args.task)
+    args.batch_size = opt.batch_size
+    args.device = opt.device
+    args.base_lr = opt.learning_rate
 
     device = torch.device(opt.device)
     if args.keep_log:
@@ -125,7 +129,7 @@ def main():
             bbox = torch.as_tensor(datapack['bbox'], dtype=torch.float32, device=opt.device)
             pt = get_click_prompt(datapack, opt)
             # -------------------------------------------------------- forward --------------------------------------------------------
-            pred = model(imgs, pt, bbox)
+            pred = model(imgs) # pred = model(imgs, pt, bbox)
             train_loss = criterion(pred, masks)
             # -------------------------------------------------------- backward -------------------------------------------------------
             optimizer.zero_grad()

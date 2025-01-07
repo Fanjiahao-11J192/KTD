@@ -8,7 +8,7 @@ import torch
 
 from functools import partial
 
-from .modeling import ImageEncoderViT, MaskDecoder, PromptEncoder, Samus, TwoWayTransformer
+from .modeling import ImageEncoderViT, MaskDecoder, PromptEncoder, Samus, TwoWayTransformer,AutoPromptGenerator
 from torch.nn import functional as F
 
 
@@ -82,6 +82,15 @@ def _build_samus(
             global_attn_indexes=encoder_global_attn_indexes,
             window_size=14,
             out_chans=prompt_embed_dim,
+        ),
+        auto_prompt_generator= AutoPromptGenerator(
+            embed_dim=prompt_embed_dim,
+            depth= 2,
+            num_heads= 8,
+            mlp_ratio= 4,
+            batchsize= args.batch_size,
+            task_number = 2,
+            device= args.device
         ),
         prompt_encoder=PromptEncoder(
             embed_dim=prompt_embed_dim,

@@ -39,10 +39,10 @@ class Config_TN3K:
     result_path = "./result/TN3K/"
     tensorboard_path = "./tensorboard/TN3K/"
     load_path = save_path + "/SAMUS_12291902_47_0.8595338325001363.pth"
-    load_classifier = save_path + "/xx.pth"
+    load_classifier_path = save_path + "/Resnet18_01032018_59_0.7805483249970666.pth"
     save_path_code = "_"
 
-    workers = 1                  # number of data loading workers (default: 8)
+    workers = 0                  # number of data loading workers (default: 8)
     epochs = 400                 # number of total epochs to run (default: 400)
     batch_size = 8               # batch size (default: 4)
     learning_rate = 1e-4         # initial learning rate (default: 0.001)
@@ -70,11 +70,11 @@ class Config_TN3K:
 
     classifier_epochs= 200
     classifier_batch_size = 128
-    classifier_learning_rate = 2e-4  # initial learning rate (default: 0.001)
+    classifier_learning_rate = 1e-4  # initial learning rate (default: 0.001)
     classifier_momentum = 0.9  # momentum
     classifier_classes = 2  # the number of classes (normal + abnormal)
-    classifier_name = "Vit"
-    classifier_size = 224 #(Vit:224,Resnet18 256)
+    classifier_name = "Vit"  # (Vit,Resnet18)
+    classifier_size = 224 # (Vit:224,Resnet18 256)
 
 
 class Config_BUSI:

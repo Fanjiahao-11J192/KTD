@@ -106,12 +106,11 @@ def eval_mask_slice2(valloader, model, criterion, opt, args):
         label = Variable(datapack['label'].to(dtype = torch.float32, device=opt.device))
         class_id = datapack['class_id']
         image_filename = datapack['image_name']
-
+        print('batch_idx [{}/{}]'.format(batch_idx,len(valloader)))
         pt = get_click_prompt(datapack, opt)
-
         with torch.no_grad():
             start_time = time.time()
-            pred = model(imgs, pt)
+            pred = model(imgs) # pred = model(imgs, pt)
             sum_time =  sum_time + (time.time()-start_time)
 
         val_loss = criterion(pred, masks)
@@ -141,7 +140,7 @@ def eval_mask_slice2(valloader, model, criterion, opt, args):
             sps[eval_number+j, 1] += sp
             hds[eval_number+j, 1] += hausdorff_distance(pred_i[0, :, :], gt_i[0, :, :], distance="manhattan")
             # # 保存图片
-            visual_compare(image_filename[j],pred_i,gt_i,opt)
+            # visual_compare(image_filename[j],pred_i,gt_i,opt)
             del pred_i, gt_i
             if opt.visual:
                 visual_segmentation_sets_with_pt(seg[j:j+1, :, :], image_filename[j], opt, pt[0][j, :, :])

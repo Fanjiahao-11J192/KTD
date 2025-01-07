@@ -49,7 +49,9 @@ class MaskDecoder(nn.Module):
         self.iou_token = nn.Embedding(1, transformer_dim)
         self.num_mask_tokens = num_multimask_outputs + 1
         self.mask_tokens = nn.Embedding(self.num_mask_tokens, transformer_dim)
-
+        self.output_tokens = torch.cat([self.iou_token.weight, self.mask_tokens.weight],
+                                  dim=0)  # 1 iou + 1 total mask + 3 sub mask = (5, 256)
+        # output_tokens = output_tokens.unsqueeze(0).expand(sparse_prompt_embeddings.size(0), -1, -1)  # b 5 256
         self.output_upscaling = nn.Sequential(
             nn.ConvTranspose2d(transformer_dim, transformer_dim // 4, kernel_size=2, stride=2),
             LayerNorm2d(transformer_dim // 4),

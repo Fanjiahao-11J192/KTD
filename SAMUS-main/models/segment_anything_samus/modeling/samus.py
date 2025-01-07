@@ -15,7 +15,7 @@ from .image_encoder import ImageEncoderViT
 from .mask_decoder import MaskDecoder
 from .prompt_encoder import PromptEncoder
 from einops import rearrange
-
+from .Auto_Prompt_Generator import AutoPromptGenerator
 
 class Samus(nn.Module):
     mask_threshold: float = 0.0
@@ -25,6 +25,7 @@ class Samus(nn.Module):
         self,
         image_encoder: ImageEncoderViT,
         prompt_encoder: PromptEncoder,
+        auto_prompt_generator: AutoPromptGenerator,
         mask_decoder: MaskDecoder,
         pixel_mean: List[float] = [123.675, 116.28, 103.53],
         pixel_std: List[float] = [58.395, 57.12, 57.375],
@@ -44,6 +45,7 @@ class Samus(nn.Module):
         super().__init__()
         self.image_encoder = image_encoder
         self.prompt_encoder = prompt_encoder
+        self.auto_prompt_generator = auto_prompt_generator
         self.mask_decoder = mask_decoder
         self.register_buffer("pixel_mean", torch.Tensor(pixel_mean).view(-1, 1, 1), False)
         self.register_buffer("pixel_std", torch.Tensor(pixel_std).view(-1, 1, 1), False)
@@ -145,51 +147,58 @@ class Samus(nn.Module):
     def forward(
         self, 
         imgs: torch.Tensor,
-        pt: Tuple[torch.Tensor, torch.Tensor],  # [b n 2, b n]
-        bbox: torch.Tensor=None, # b 4
+        # pt: Tuple[torch.Tensor, torch.Tensor],  # [b n 2, b n]
+        # bbox: torch.Tensor=None, # b 4
     ) -> torch.Tensor:
         imge= self.image_encoder(imgs)
-        if len(pt[0].shape) == 3:
-          se, de = self.prompt_encoder(            # se b 2 256, de b 256 32 32
-                        points=pt,
-                        boxes=None,
-                        masks=None,
-                    )
-          low_res_masks, _ = self.mask_decoder( # low_res_mask b 1 128 128
+        # if len(pt[0].shape) == 3:
+        #   # se, de = self.prompt_encoder(            # se b 2 256, de b 256 32 32
+        #   #               points=pt,
+        #   #               boxes=None,
+        #   #               masks=None,
+        #   #           )
+        #   # print('se',se.shape)
+        #   # print('de',de.shape)
+        imge,se,de = self.auto_prompt_generator(image_embeddings = imge,output_tokens = self.mask_decoder.output_tokens)
+        low_res_masks, _ = self.mask_decoder( # low_res_mask b 1 128 128
                     image_embeddings=imge,
-                    image_pe=self.prompt_encoder.get_dense_pe(), 
+                    image_pe=self.prompt_encoder.get_dense_pe(),
                     sparse_prompt_embeddings=se,
-                    dense_prompt_embeddings=de, 
+                    dense_prompt_embeddings=de,
                     multimask_output=False,
                     )
-          masks = F.interpolate(low_res_masks, (256, 256), mode="bilinear", align_corners=False)
-          outputs = {"low_res_logits": low_res_masks, "masks": masks}
-          return outputs
-        else:
-          low_res_masks, masks = [], []
-          for i in range(pt[0].shape[1]):
-            pti = (pt[0][:, i, :, :], pt[1][:, i, :])
-            sei, dei = self.prompt_encoder(            # se b 2 256, de b 256 32 32
-                        points=pti,
-                        boxes=None,
-                        masks=None,
-                    )
-            low_res_masksi, _ = self.mask_decoder( # low_res_mask b 1 128 128
-                    image_embeddings=imge,
-                    image_pe=self.prompt_encoder.get_dense_pe(), 
-                    sparse_prompt_embeddings=sei,
-                    dense_prompt_embeddings=dei, 
-                    multimask_output=False,
-                    )
-            masksi = F.interpolate(low_res_masksi, (256, 256), mode="bilinear", align_corners=False)
-            low_res_masks.append(low_res_masksi)
-            masks.append(masksi)
-          low_res_masks = torch.stack(low_res_masks, dim=1)
-          masks = torch.stack(masks, dim=1) # b c 1 255 255
-          masks = masks.reshape(masks.shape[0], -1, masks.shape[3], masks.shape[4])
-          low_res_masks = low_res_masks.reshape(low_res_masks.shape[0], -1, low_res_masks.shape[3], low_res_masks.shape[4])
-          outputs = {"low_res_logits": low_res_masks, "masks": masks}
-          return outputs
+        masks = F.interpolate(low_res_masks, (256, 256), mode="bilinear", align_corners=False)
+        outputs = {"low_res_logits": low_res_masks, "masks": masks}
+        return outputs
+        # else:
+        #   low_res_masks, masks = [], []
+        #   for i in range(pt[0].shape[1]):
+        #     # pti = (pt[0][:, i, :, :], pt[1][:, i, :])
+        #     # sei, dei = self.prompt_encoder(            # se b 2 256, de b 256 32 32
+        #     #             points=pti,
+        #     #             boxes=None,
+        #     #             masks=None,
+        #     #         )
+        #     # print('sei',sei.shape)
+        #     # print('dei',dei.shape)
+        #     imge, sei, dei = self.auto_prompt_generator(image_embeddings=imge,
+        #                                               output_tokens=self.mask_decoder.output_tokens)
+        #     low_res_masksi, _ = self.mask_decoder( # low_res_mask b 1 128 128
+        #             image_embeddings=imge,
+        #             image_pe=self.prompt_encoder.get_dense_pe(),
+        #             sparse_prompt_embeddings=sei,
+        #             dense_prompt_embeddings=dei,
+        #             multimask_output=False,
+        #             )
+        #     masksi = F.interpolate(low_res_masksi, (256, 256), mode="bilinear", align_corners=False)
+        #     low_res_masks.append(low_res_masksi)
+        #     masks.append(masksi)
+        #   low_res_masks = torch.stack(low_res_masks, dim=1)
+        #   masks = torch.stack(masks, dim=1) # b c 1 255 255
+        #   masks = masks.reshape(masks.shape[0], -1, masks.shape[3], masks.shape[4])
+        #   low_res_masks = low_res_masks.reshape(low_res_masks.shape[0], -1, low_res_masks.shape[3], low_res_masks.shape[4])
+        #   outputs = {"low_res_logits": low_res_masks, "masks": masks}
+        #   return outputs
 
 
 
