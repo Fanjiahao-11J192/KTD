@@ -39,7 +39,7 @@ class AutoPromptGenerator(nn.Module):
         self.device = device
 
         self.task_output_common_mlp = nn.Linear(embed_dim, embed_dim)
-        self.task_tokens = nn.Parameter(torch.randn(1,task_number, embed_dim)).to(device)  # 1 task_n dim
+        self.task_tokens = nn.Parameter(torch.randn(1,task_number, embed_dim)) # 1 task_n dim
 
 
         for i in range(depth):
@@ -58,14 +58,12 @@ class AutoPromptGenerator(nn.Module):
 
     def forward(self,image_embeddings,output_tokens):
 
-
-
         batchsize = image_embeddings.size(0)
         output_tokens = output_tokens.unsqueeze(0).expand(batchsize, -1, -1).unsqueeze(1).to(self.device) # b 1 5 256
 
         ori_output_tokens = output_tokens
         ori_task_tokens = task_tokens = self.task_tokens.expand(batchsize,-1,-1,-1) # 原始task_tokens 维度 1 task 256
-
+        print('task_tokens',self.task_tokens.abs().sum())
         for blk in self.task_output_attn_blocks:
             task_tokens,output_tokens = blk(task_tokens,output_tokens)
 
