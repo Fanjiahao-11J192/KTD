@@ -63,12 +63,11 @@ class AutoPromptGenerator(nn.Module):
         batchsize = image_embeddings.size(0)
         output_tokens = output_tokens.unsqueeze(0).expand(batchsize, -1, -1).unsqueeze(1).to(self.device) # b 1 5 256
 
-
         ori_output_tokens = output_tokens
         ori_task_tokens = task_tokens = self.task_tokens.expand(batchsize,-1,-1,-1) # 原始task_tokens 维度 1 task 256
 
         for blk in self.task_output_attn_blocks:
-            task_tokens,output_tokens = blk(task_tokens.data,output_tokens.data)
+            task_tokens,output_tokens = blk(task_tokens,output_tokens)
 
         # 更新task_tokens 和 output_tokens
         task_tokens = self.task_output_common_mlp(task_tokens)+ori_task_tokens # b 1 task 256
@@ -77,7 +76,7 @@ class AutoPromptGenerator(nn.Module):
         image_embeddings = image_embeddings.permute(0,2,3,1)
         T = torch.concat([task_tokens,output_tokens],dim=-2)
         for blk in self.image_output_attn_blocks:
-            image_embeddings,T = blk(image_embeddings.data,T.data)
+            image_embeddings,T = blk(image_embeddings,T)
         image_embeddings = image_embeddings.permute(0,3,1,2)
         Ps = T[:,:,:self.task_number,:].squeeze(1)
 
