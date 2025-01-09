@@ -57,13 +57,12 @@ class AutoPromptGenerator(nn.Module):
 
 
     def forward(self,image_embeddings,output_tokens):
-
+        origin_image_embedding = image_embeddings  # 返回原始图像
         batchsize = image_embeddings.size(0)
-        output_tokens = output_tokens.unsqueeze(0).expand(batchsize, -1, -1).unsqueeze(1).to(self.device) # b 1 5 256
+        output_tokens = output_tokens.unsqueeze(0).expand(batchsize, -1, -1).unsqueeze(1) # b 1 5 256
 
         ori_output_tokens = output_tokens
         ori_task_tokens = task_tokens = self.task_tokens.expand(batchsize,-1,-1,-1) # 原始task_tokens 维度 1 task 256
-        print('task_tokens',self.task_tokens.abs().sum())
         for blk in self.task_output_attn_blocks:
             task_tokens,output_tokens = blk(task_tokens,output_tokens)
 
@@ -76,11 +75,15 @@ class AutoPromptGenerator(nn.Module):
         for blk in self.image_output_attn_blocks:
             image_embeddings,T = blk(image_embeddings,T)
         image_embeddings = image_embeddings.permute(0,3,1,2)
+
         Ps = T[:,:,:self.task_number,:].squeeze(1)
 
         Pd = self.mask_adapter(image_embeddings)
-
-        return image_embeddings,Ps,Pd
+        print('image_embedding', image_embeddings[0].mean((-1,-2,-3)))
+        print('image_embedding_diff', (image_embeddings[0]-image_embeddings[1]).mean((-1,-2,-3)))
+        print('T', T[0].mean((-1, -2, -3)))
+        print('T_diff', (T[0] - T[1]).mean((-1, -2, -3)))
+        return origin_image_embedding,Ps,Pd
 
 class DoubleAttnBlock(nn.Module):
     """Transformer blocks with support of window attention and residual propagation blocks"""
@@ -108,6 +111,9 @@ class DoubleAttnBlock(nn.Module):
                 positional parameter size.
         """
         super().__init__()
+
+        self.layernorm_x1 = nn.LayerNorm(dim)
+        self.layernorm_x2 = nn.LayerNorm(dim)
         self.q_kv_cross_attn = qkvAttention(dim=dim, num_heads=num_heads)  # with skip connection
         self.q_kv_mlp = MLPBlock(embedding_dim=dim, mlp_dim=int(dim * mlp_ratio), act=act_layer)
         self.kv_q_cross_attn = qkvAttention(dim=dim, num_heads=num_heads)  # with skip connection
@@ -119,22 +125,38 @@ class DoubleAttnBlock(nn.Module):
         self.fusion_kv_q_cross_attn = qkvAttention(dim=dim, num_heads=num_heads)  # with skip connection
         self.fusion_kv_q_mlp = MLPBlock(embedding_dim=dim, mlp_dim=int(dim * mlp_ratio), act=act_layer)
 
+        self.drop_out = nn.Dropout(0.2)
+
+        # 输出部分的 LayerNorm
+        self.output_layernorm_x1 = nn.LayerNorm(dim)
+        self.output_layernorm_x2 = nn.LayerNorm(dim)
+
     def forward(self, x1: torch.Tensor, x2: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        x1 = self.layernorm_x1(x1)
+        x2 = self.layernorm_x2(x2)
 
         q_1,kv_1 = x1,x2
         q_2,kv_2 = x2,x1
 
         x_1 = self.q_kv_cross_attn(q_1,kv_1,kv_1)
         x_1 = self.q_kv_mlp(x_1)
+        x_1 = self.drop_out(x_1)
 
         x_2 = self.kv_q_cross_attn(q_2,kv_2,kv_2)
         x_2 = self.kv_q_mlp(x_2)
+        x_2 = self.drop_out(x_2)
 
         fusion_x1 = self.fusion_q_kv_cross_attn(x_1,x_2,x_2)
         fusion_x1 = self.fusion_q_kv_mlp(fusion_x1)
+        fusion_x1 = self.drop_out(fusion_x1)
 
         fusion_x2 = self.fusion_kv_q_cross_attn(x_2,x_1,x_1)
         fusion_x2 = self.fusion_kv_q_mlp(fusion_x2)
+        fusion_x2 = self.drop_out(fusion_x2)
+
+        # 输出部分的归一化
+        fusion_x1 = self.output_layernorm_x1(fusion_x1)
+        fusion_x2 = self.output_layernorm_x2(fusion_x2)
 
         return fusion_x1, fusion_x2
 class MLPBlock(nn.Module):
@@ -215,9 +237,9 @@ class qkvAttention(nn.Module):
             attn = add_decomposed_rel_pos(attn, q, self.rel_pos_h, self.rel_pos_w, (H, W), (H, W))
 
         attn = attn.softmax(dim=-1)
+
         x = (attn @ v).view(B, self.num_heads, H, W, -1).permute(0, 2, 3, 1, 4).reshape(B, H, W, -1)
         x = self.proj(x)
-
         return x
 def add_decomposed_rel_pos(
     attn: torch.Tensor,
