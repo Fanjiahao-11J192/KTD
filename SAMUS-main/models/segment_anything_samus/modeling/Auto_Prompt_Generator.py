@@ -41,7 +41,6 @@ class AutoPromptGenerator(nn.Module):
         self.task_output_common_mlp = nn.Linear(embed_dim, embed_dim)
         self.task_tokens = nn.Parameter(torch.randn(1,task_number, embed_dim)) # 1 task_n dim
 
-
         for i in range(depth):
             task_output_attn_block = DoubleAttnBlock(
                 dim = embed_dim,
@@ -54,36 +53,77 @@ class AutoPromptGenerator(nn.Module):
             self.task_output_attn_blocks.append(task_output_attn_block)
             self.image_output_attn_blocks.append(image_output_attn_block)
 
+        self.Ps = nn.Parameter(torch.randn(1,task_number, embed_dim))  #1 2 256
+        self.Pd = nn.Parameter(torch.randn(embed_dim, 32, 32))  # 256 32 32
+        self.ps_image_attn_blocks = nn.ModuleList()
+        self.pd_image_attn_blocks = nn.ModuleList()
+        for i in range(depth):
+            ps_image_attn_block = SingleAttnBlock(
+                dim = embed_dim,
+                num_heads = num_heads,
+                mlp_ratio= mlp_ratio)
+            pd_image_attn_block = SingleAttnBlock(
+                dim = embed_dim,
+                num_heads = num_heads,
+                mlp_ratio= mlp_ratio)
+            self.ps_image_attn_blocks.append(ps_image_attn_block)
+            self.pd_image_attn_blocks.append(pd_image_attn_block)
 
 
     def forward(self,image_embeddings,output_tokens):
         origin_image_embedding = image_embeddings  # 返回原始图像
         batchsize = image_embeddings.size(0)
-        output_tokens = output_tokens.unsqueeze(0).expand(batchsize, -1, -1).unsqueeze(1) # b 1 5 256
+        Ps = self.Ps.expand(batchsize,-1,-1,-1)
+        Pd = self.Pd.expand(batchsize,-1,-1,-1)
 
-        ori_output_tokens = output_tokens
-        ori_task_tokens = task_tokens = self.task_tokens.expand(batchsize,-1,-1,-1) # 原始task_tokens 维度 1 task 256
-        for blk in self.task_output_attn_blocks:
-            task_tokens,output_tokens = blk(task_tokens,output_tokens)
+        image_embeddings = image_embeddings.permute(0, 2, 3, 1)
+        for blk in self.ps_image_attn_blocks:
+            Ps = blk(Ps, image_embeddings)
 
-        # 更新task_tokens 和 output_tokens
-        task_tokens = self.task_output_common_mlp(task_tokens)+ori_task_tokens # b 1 task 256
-        output_tokens = self.task_output_common_mlp(output_tokens)+ori_output_tokens # b 1 5 256
+        Pd = Pd.permute(0, 2, 3, 1)
+        for blk in self.pd_image_attn_blocks:
+            Pd = blk(Pd, image_embeddings)
+        Pd = Pd.permute(0,3,1,2)
 
-        image_embeddings = image_embeddings.permute(0,2,3,1)
-        T = torch.concat([task_tokens,output_tokens],dim=-2)
-        for blk in self.image_output_attn_blocks:
-            image_embeddings,T = blk(image_embeddings,T)
-        image_embeddings = image_embeddings.permute(0,3,1,2)
+        Ps = Ps.squeeze(1)
 
-        Ps = T[:,:,:self.task_number,:].squeeze(1)
-
-        Pd = self.mask_adapter(image_embeddings)
-        print('image_embedding', image_embeddings[0].mean((-1,-2,-3)))
-        print('image_embedding_diff', (image_embeddings[0]-image_embeddings[1]).mean((-1,-2,-3)))
-        print('T', T[0].mean((-1, -2, -3)))
-        print('T_diff', (T[0] - T[1]).mean((-1, -2, -3)))
         return origin_image_embedding,Ps,Pd
+
+
+    # def forward(self,image_embeddings,output_tokens):
+    #     origin_image_embedding = image_embeddings  # 返回原始图像
+    #     batchsize = image_embeddings.size(0)
+    #     output_tokens = output_tokens.unsqueeze(0).expand(batchsize, -1, -1).unsqueeze(1) # b 1 5 256
+    #
+    #     ori_output_tokens = output_tokens
+    #     ori_task_tokens = task_tokens = self.task_tokens.expand(batchsize,-1,-1,-1) # 原始task_tokens 维度 1 task 256
+    #     for blk in self.task_output_attn_blocks:
+    #         task_tokens,output_tokens = blk(task_tokens,output_tokens)
+    #
+    #     # 更新task_tokens 和 output_tokens
+    #     task_tokens = self.task_output_common_mlp(task_tokens)+ori_task_tokens # b 1 task 256
+    #     output_tokens = self.task_output_common_mlp(output_tokens)+ori_output_tokens # b 1 5 256
+    #
+    #     image_embeddings = image_embeddings.permute(0,2,3,1)
+    #     T = torch.concat([task_tokens,output_tokens],dim=-2)
+    #     for blk in self.image_output_attn_blocks:
+    #         image_embeddings,T = blk(image_embeddings,T)
+    #     image_embeddings = image_embeddings.permute(0,3,1,2)
+    #
+    #     Ps = T[:,:,:self.task_number,:].squeeze(1)
+    #
+    #     Pd = self.mask_adapter(image_embeddings)
+    #     # print('image_embedding',image_embeddings.shape)
+    #     # print('image_embedding0', image_embeddings[0].mean((-1,-2)))
+    #     # print('image_embedding1', image_embeddings[1].mean((-1,-2)))
+    #     # print('image_embedding_diff', (image_embeddings[0]-image_embeddings[1]).mean((-1,-2)))
+    #     # print('T',T.shape)
+    #     # print('T0', T[0].mean((-1)))
+    #     # print('T1', T[1].mean((-1)))
+    #     # print('T_diff', (T[0] - T[1]).mean((-1)))
+    #     # print(Ps.shape)
+    #     # print(Pd.shape)
+    #     return origin_image_embedding,Ps,Pd
 
 class DoubleAttnBlock(nn.Module):
     """Transformer blocks with support of window attention and residual propagation blocks"""
@@ -159,6 +199,57 @@ class DoubleAttnBlock(nn.Module):
         fusion_x2 = self.output_layernorm_x2(fusion_x2)
 
         return fusion_x1, fusion_x2
+
+class SingleAttnBlock(nn.Module):
+    """Transformer blocks with support of window attention and residual propagation blocks"""
+
+    def __init__(
+            self,
+            dim: int,
+            num_heads: int,
+            mlp_ratio: float = 4.0,
+            act_layer: Type[nn.Module] = nn.GELU,
+    ) -> None:
+        """
+        Args:
+            dim (int): Number of input channels.
+            num_heads (int): Number of attention heads in each ViT block.
+            mlp_ratio (float): Ratio of mlp hidden dim to embedding dim.
+            qkv_bias (bool): If True, add a learnable bias to query, key, value.
+            norm_layer (nn.Module): Normalization layer.
+            act_layer (nn.Module): Activation layer.
+            use_rel_pos (bool): If True, add relative positional embeddings to the attention map.
+            rel_pos_zero_init (bool): If True, zero initialize relative positional parameters.
+            window_size (int): Window size for window attention blocks. If it equals 0, then
+                use global attention.
+            input_size (tuple(int, int) or None): Input resolution for calculating the relative
+                positional parameter size.
+        """
+        super().__init__()
+
+        self.layernorm_x1 = nn.LayerNorm(dim)
+        self.q_kv_cross_attn = qkvAttention(dim=dim, num_heads=num_heads)  # with skip connection
+        self.q_kv_mlp = MLPBlock(embedding_dim=dim, mlp_dim=int(dim * mlp_ratio), act=act_layer)
+
+        self.drop_out = nn.Dropout(0.2)
+        # 输出部分的 LayerNorm
+        self.output_layernorm_x1 = nn.LayerNorm(dim)
+
+
+    def forward(self, x1: torch.Tensor, x2: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        x1 = self.layernorm_x1(x1)
+
+        q_1,kv_1 = x1,x2
+
+        x_1 = self.q_kv_cross_attn(q_1,kv_1,kv_1)
+        x_1 = self.q_kv_mlp(x_1)
+        x_1 = self.drop_out(x_1)
+
+        # 输出部分的归一化
+        x_1 = self.output_layernorm_x1(x_1)
+
+        return x_1
+
 class MLPBlock(nn.Module):
     def __init__(
         self,

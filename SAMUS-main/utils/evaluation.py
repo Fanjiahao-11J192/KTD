@@ -91,7 +91,7 @@ def eval_mask_slice(valloader, model, criterion, opt, args):
         return mean_dice, mean_iou, mean_acc, mean_se, mean_sp
 
 
-def eval_mask_slice2(valloader, model, criterion, opt, args):
+def eval_mask_slice2(valloader, model, criterion, opt, args,epoch):
     model.eval()
     val_losses, mean_dice = 0, 0
     max_slice_number = opt.batch_size * (len(valloader) + 1)
@@ -110,7 +110,8 @@ def eval_mask_slice2(valloader, model, criterion, opt, args):
         pt = get_click_prompt(datapack, opt)
         with torch.no_grad():
             start_time = time.time()
-            pred = model(imgs) # pred = model(imgs, pt)
+            # pred = model(imgs, pt)
+            pred = model(imgs)
             sum_time =  sum_time + (time.time()-start_time)
 
         val_loss = criterion(pred, masks)
@@ -140,7 +141,7 @@ def eval_mask_slice2(valloader, model, criterion, opt, args):
             sps[eval_number+j, 1] += sp
             hds[eval_number+j, 1] += hausdorff_distance(pred_i[0, :, :], gt_i[0, :, :], distance="manhattan")
             # # 保存图片
-            # visual_compare(image_filename[j],pred_i,gt_i,opt)
+            visual_compare(image_filename[j],pred_i,gt_i,opt,epoch)
             del pred_i, gt_i
             if opt.visual:
                 visual_segmentation_sets_with_pt(seg[j:j+1, :, :], image_filename[j], opt, pt[0][j, :, :])
@@ -623,7 +624,7 @@ def eval_camus_samed(valloader, model, criterion, opt, args):
         sp_std = np.std(sp, axis=0)
         return dice_mean, hd_mean, iou_mean, acc_mean, se_mean, sp_mean, dices_std, hd_std, iou_std, acc_std, se_std, sp_std
 
-def get_eval(valloader, model, criterion, opt, args):
+def get_eval(valloader, model, criterion, opt, args,epoch = 0):
     if args.modelname == "SAMed":
         if opt.eval_mode == "camusmulti":
             opt.eval_mode = "camus_samed"
@@ -632,7 +633,7 @@ def get_eval(valloader, model, criterion, opt, args):
     if args.modelname == "Resnet18" or args.modelname == "Vit":
         opt.eval_mode = "F-score"
     if opt.eval_mode == "mask_slice":
-        return eval_mask_slice2(valloader, model, criterion, opt, args)
+        return eval_mask_slice2(valloader, model, criterion, opt, args,epoch)
     elif opt.eval_mode == "slice":
         return eval_slice(valloader, model, criterion, opt, args)
     elif opt.eval_mode == "camusmulti":

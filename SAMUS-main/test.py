@@ -1,6 +1,6 @@
 from ast import arg
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 import argparse
 from pickle import FALSE, TRUE
 from statistics import mode
@@ -48,6 +48,7 @@ def main():
     parser.add_argument('--warmup', type=bool, default=False, help='If activated, warp up the learning from a lower lr to the base_lr') # True
     parser.add_argument('--warmup_period', type=int, default=250, help='Warp up iterations, only valid whrn warmup is activated')
     parser.add_argument('-keep_log', type=bool, default=False, help='keep the loss&lr&dice during training or not')
+    parser.add_argument('--device', type=str, default='cuda', help='cuda or cpu')
 
     args = parser.parse_args()
     opt = get_config(args.task)  # please configure your hyper-parameter
@@ -57,6 +58,7 @@ def main():
     opt.visual = True
     #opt.eval_mode = "patient"
     opt.modelname = args.modelname
+    args.device = opt.device
     device = torch.device(opt.device)
 
      #  =============================================================== add the seed to make sure the results are reproducible ==============================================================
@@ -106,8 +108,8 @@ def main():
     print("Total_params: {}".format(pytorch_total_params))
     input = torch.randn(1, 1, args.encoder_input_size, args.encoder_input_size).cuda()
     points = (torch.tensor([[[1, 2]]]).float().cuda(), torch.tensor([[1]]).float().cuda())
-    flops, params = profile(model, inputs=(input, points), )
-    print('Gflops:', flops/1000000000, 'params:', params)
+    # flops, params = profile(model, inputs=(input, points), )
+    # print('Gflops:', flops/1000000000, 'params:', params)
 
     model.eval()
 
@@ -115,7 +117,7 @@ def main():
         dices, mean_dice, _, val_losses = get_eval(valloader, model, criterion=criterion, opt=opt, args=args)
         print("mean dice:", mean_dice)
     else:
-        mean_dice, mean_hdis, mean_iou, mean_acc, mean_se, mean_sp, std_dice, std_hdis, std_iou, std_acc, std_se, std_sp = get_eval(valloader, model, criterion=criterion, opt=opt, args=args)
+        mean_dice, mean_hdis, mean_iou, mean_acc, mean_se, mean_sp, std_dice, std_hdis, std_iou, std_acc, std_se, std_sp = get_eval(valloader, model, criterion=criterion, opt=opt, args=args,epoch='test')
         print("dataset:" + args.task + " -----------model name: "+ args.modelname)
         print("task", args.task, "checkpoints:", opt.load_path)
         print(mean_dice[1:], mean_hdis[1:], mean_iou[1:], mean_acc[1:], mean_se[1:], mean_sp[1:])

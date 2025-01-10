@@ -152,14 +152,12 @@ class Samus(nn.Module):
     ) -> torch.Tensor:
         imge= self.image_encoder(imgs)
         # if len(pt[0].shape) == 3:
-        #   # se, de = self.prompt_encoder(            # se b 2 256, de b 256 32 32
-        #   #               points=pt,
-        #   #               boxes=None,
-        #   #               masks=None,
-        #   #           )
-        #   # print('se',se.shape)
-        #   # print('de',de.shape)
-        imge,se,de = self.auto_prompt_generator(image_embeddings = imge,output_tokens = self.mask_decoder.output_tokens)
+        #   se, de = self.prompt_encoder(            # se b 2 256, de b 256 32 32
+        #                 points=pt,
+        #                 boxes=None,
+        #                 masks=None,
+        #             )
+        imge,se,de = self.auto_prompt_generator(image_embeddings = imge,output_tokens = torch.cat([self.mask_decoder.iou_token.weight, self.mask_decoder.mask_tokens.weight], dim=0))
         low_res_masks, _ = self.mask_decoder( # low_res_mask b 1 128 128
                     image_embeddings=imge,
                     image_pe=self.prompt_encoder.get_dense_pe(),

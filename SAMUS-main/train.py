@@ -47,7 +47,7 @@ def main():
     parser.add_argument('--base_lr', type=float, default=0.0005, help='segmentation network learning rate, 0.005 for SAMed, 0.0001 for MSA') #0.0006
     parser.add_argument('--warmup', type=bool, default=False, help='If activated, warp up the learning from a lower lr to the base_lr') 
     parser.add_argument('--warmup_period', type=int, default=250, help='Warp up iterations, only valid whrn warmup is activated')
-    parser.add_argument('-keep_log', type=bool, default=False, help='keep the loss&lr&dice during training or not')
+    parser.add_argument('-keep_log', type=bool, default=True, help='keep the loss&lr&dice during training or not')
 
     args = parser.parse_args()
     opt = get_config(args.task)
@@ -128,12 +128,18 @@ def main():
             class_labels = torch.as_tensor(datapack['class_label'],dtype = torch.float32, device=opt.device)
             bbox = torch.as_tensor(datapack['bbox'], dtype=torch.float32, device=opt.device)
             pt = get_click_prompt(datapack, opt)
+            # print(imgs.shape) # 8 1 256 256
             # -------------------------------------------------------- forward --------------------------------------------------------
             pred = model(imgs) # pred = model(imgs, pt, bbox)
             train_loss = criterion(pred, masks)
             # -------------------------------------------------------- backward -------------------------------------------------------
             optimizer.zero_grad()
             train_loss.backward()
+            # print(batch_idx)
+            # for name,param in model.auto_prompt_generator.named_parameters():
+            #     print(name, param.requires_grad)  # 输出每个参数是否需要梯度
+            #     if 'task_tokens' in name:
+            #         print(f"Found {name}, Gradient Sum: {param.grad.abs().sum() if param.grad is not None else 'None'}")
             optimizer.step()
             train_losses += train_loss.item()
             print('batch_idx [{}/{}/{}], train loss:{:.4f}'.format(batch_idx,len(trainloader),epoch,train_loss))
@@ -161,7 +167,7 @@ def main():
         #  --------------------------------------------------------- evaluation ----------------------------------------------------------
         if epoch % opt.eval_freq == 0:
             model.eval()
-            dices, mean_dice, _, val_losses = get_eval(valloader, model, criterion=criterion, opt=opt, args=args)
+            dices, mean_dice, _, val_losses = get_eval(valloader, model, criterion=criterion, opt=opt, args=args,epoch=epoch)
             print('epoch [{}/{}], val loss:{:.4f}'.format(epoch, opt.epochs, val_losses))
             print('epoch [{}/{}], val dice:{:.4f}'.format(epoch, opt.epochs, mean_dice))
             if args.keep_log:
