@@ -105,7 +105,7 @@ class AutoPromptGenerator(nn.Module):
     #     output_tokens = self.task_output_common_mlp(output_tokens)+ori_output_tokens # b 1 5 256
     #
     #     image_embeddings = image_embeddings.permute(0,2,3,1)
-    #     T = torch.concat([task_tokens,output_tokens],dim=-2)
+    #     T = torch.cat([task_tokens,output_tokens],dim=-2)
     #     for blk in self.image_output_attn_blocks:
     #         image_embeddings,T = blk(image_embeddings,T)
     #     image_embeddings = image_embeddings.permute(0,3,1,2)

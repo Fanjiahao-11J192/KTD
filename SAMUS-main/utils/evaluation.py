@@ -141,7 +141,7 @@ def eval_mask_slice2(valloader, model, criterion, opt, args,epoch):
             sps[eval_number+j, 1] += sp
             hds[eval_number+j, 1] += hausdorff_distance(pred_i[0, :, :], gt_i[0, :, :], distance="manhattan")
             # # 保存图片
-            visual_compare(image_filename[j],pred_i,gt_i,opt,epoch)
+            visual_compare(image_filename[j],pred_i,gt_i,opt)
             del pred_i, gt_i
             if opt.visual:
                 visual_segmentation_sets_with_pt(seg[j:j+1, :, :], image_filename[j], opt, pt[0][j, :, :])
