@@ -306,20 +306,36 @@ class ImageToImage2D(Dataset):
     def __getitem__(self, i):
         id_ = self.ids[i]
         if "test" in self.split:
-            sub_path, filename, class_label = id_.split('/')[0], id_.split('/')[1], int(id_.split('/')[2])
+            if 'KTD' in self.dataset_path:
+                sub_path, filename, class_label = id_.split('/')[0], id_.split('/')[1], int(id_.split('/')[2].split('-')[0])
+            else:
+                sub_path, filename, class_label = id_.split('/')[0], id_.split('/')[1], int(id_.split('/')[2])
             # class_id0, sub_path, filename = id_.split('/')[0], id_.split('/')[1], id_.split('/')[2]
             # self.class_id = int(class_id0)
         else:
-            class_id0, sub_path, filename, class_label = id_.split('/')[0], id_.split('/')[1], id_.split('/')[2], int(id_.split('/')[3])
-        img_path = os.path.join(os.path.join(self.dataset_path, sub_path), 'img')
-        label_path = os.path.join(os.path.join(self.dataset_path, sub_path), 'label')
-        image = cv2.imread(os.path.join(img_path, filename + '.jpg'), 0)
-        mask = cv2.imread(os.path.join(label_path, filename + '.jpg'), 0)
+            if 'KTD' in self.dataset_path:
+                class_id0, sub_path, filename, class_label = id_.split('/')[0], id_.split('/')[1], id_.split('/')[2], int(id_.split('/')[3].split('-')[0])
+            else:
+                class_id0, sub_path, filename, class_label = id_.split('/')[0], id_.split('/')[1], id_.split('/')[2], int(id_.split('/')[3])
+        if 'KTD' in self.dataset_path:
+            img_path = os.path.join(self.dataset_path, 'img')
+            label_path = os.path.join(self.dataset_path, 'label')
+            image = cv2.imread(os.path.join(img_path, filename +'_'+id_.split('/')[3]+ '.png'), 0)
+            mask = cv2.imread(os.path.join(label_path, filename +'_'+id_.split('/')[3]+'.png'), 0)
+        else:
+            img_path = os.path.join(os.path.join(self.dataset_path, sub_path), 'img')
+            label_path = os.path.join(os.path.join(self.dataset_path, sub_path), 'label')
+            image = cv2.imread(os.path.join(img_path, filename + '.jpg'), 0)
+            mask = cv2.imread(os.path.join(label_path, filename + '.jpg'), 0)
+
         classes = self.class_dict[sub_path]
         if classes == 2:
             #mask[mask >1] = 1
-            mask[mask < 128] = 0
-            mask[mask >= 128] = 1
+            if 'KTD' in self.dataset_path:
+                mask[mask > 1] = 1
+            else:
+                mask[mask < 128] = 0
+                mask[mask >= 128] = 1
 
 
 
@@ -345,6 +361,7 @@ class ImageToImage2D(Dataset):
                 pt, point_label = random_click(np.array(mask), class_id)
                 bbox = random_bbox(np.array(mask), class_id, self.img_size)
             else:
+                # mask_zero = torch.zeros_like(mask)
                 pt, point_label = fixed_click(np.array(mask), class_id)
                 bbox = fixed_bbox(np.array(mask), class_id, self.img_size)
             mask[mask!=class_id] = 0
@@ -358,17 +375,31 @@ class ImageToImage2D(Dataset):
 
         low_mask = low_mask.unsqueeze(0)
         mask = mask.unsqueeze(0)
-        return {
-            'image': image,
-            'label': mask,
-            'p_label': point_labels,
-            'pt': pt,
-            'bbox': bbox,
-            'low_mask':low_mask,
-            'image_name': filename + '.jpg',
-            'class_id': class_id,
-            'class_label': class_label,
+
+        if 'KTD' in self.dataset_path:
+            return {
+                'image': image,
+                'label': mask,
+                'p_label': point_labels,
+                'pt': pt,
+                'bbox': bbox,
+                'low_mask': low_mask,
+                'image_name': filename +'_'+id_.split('/')[3] + '.png',
+                'class_id': class_id,
+                'class_label': class_label,
             }
+        else:
+            return {
+                'image': image,
+                'label': mask,
+                'p_label': point_labels,
+                'pt': pt,
+                'bbox': bbox,
+                'low_mask':low_mask,
+                'image_name': filename + '.jpg',
+                'class_id': class_id,
+                'class_label': class_label,
+                }
 
 class CropImageToImage2D(Dataset):
     """

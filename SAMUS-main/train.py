@@ -1,6 +1,6 @@
 from ast import arg
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = '3'
+os.environ["CUDA_VISIBLE_DEVICES"] = '8'
 import argparse
 from pickle import FALSE, TRUE
 from statistics import mode

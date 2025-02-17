@@ -117,7 +117,7 @@ def visual_segmentation_sets_with_pt(seg, image_filename, opt, pt):
         os.makedirs(fulldir)
     cv2.imwrite(fulldir + image_filename, img)
 
-def visual_compare(image_filename,pred,gt,opt):
+def visual_compare(image_filename,pred,gt,opt,epoch):
     # 原始图片
     img_ori = cv2.imread(os.path.join(opt.data_subpath + '/img', image_filename))
     img_ori = cv2.resize(img_ori, dsize=(256, 256))
@@ -164,7 +164,11 @@ def visual_compare(image_filename,pred,gt,opt):
     # plt.tight_layout()
     # plt.show()
     # 指定保存目录和文件名
-    output_dir = opt.result_path + "/Merge-" + opt.modelname + "/"  # 指定目录
+    if 'KTD' in opt.data_path:
+        output_dir = opt.result_path + "/Merge-" + opt.modelname +"/KTD"+ "/" + str(epoch) + "/"  # 指定目录
+    else:
+        output_dir = opt.result_path + "/Merge-" + opt.modelname + "/"+str(epoch)+"/"  # 指定目录
+
     output_file = image_filename  # 指定文件名
     # fulldir = opt.result_path + "/PT3-" + "img" + "/"
     # 创建目录（如果目录不存在）
