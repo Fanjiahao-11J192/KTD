@@ -307,14 +307,14 @@ class ImageToImage2D(Dataset):
         id_ = self.ids[i]
         if "test" in self.split:
             if 'KTD' in self.dataset_path:
-                sub_path, filename, class_label = id_.split('/')[0], id_.split('/')[1], int(id_.split('/')[2].split('-')[0])
+                class_id0,sub_path, filename, class_label = id_.split('/')[0], id_.split('/')[1], id_.split('/')[2], 2-int(id_.split('/')[3].split('-')[0])  # 用2减的原因是 1为异常 2为正常
             else:
                 sub_path, filename, class_label = id_.split('/')[0], id_.split('/')[1], int(id_.split('/')[2])
             # class_id0, sub_path, filename = id_.split('/')[0], id_.split('/')[1], id_.split('/')[2]
             # self.class_id = int(class_id0)
         else:
             if 'KTD' in self.dataset_path:
-                class_id0, sub_path, filename, class_label = id_.split('/')[0], id_.split('/')[1], id_.split('/')[2], int(id_.split('/')[3].split('-')[0])
+                class_id0, sub_path, filename, class_label = id_.split('/')[0], id_.split('/')[1], id_.split('/')[2], 2-int(id_.split('/')[3].split('-')[0])
             else:
                 class_id0, sub_path, filename, class_label = id_.split('/')[0], id_.split('/')[1], id_.split('/')[2], int(id_.split('/')[3])
         if 'KTD' in self.dataset_path:
@@ -464,23 +464,39 @@ class CropImageToImage2D(Dataset):
     def __getitem__(self, i):
         id_ = self.ids[i]
         if "test" in self.split:
-            sub_path, filename, class_label = id_.split('/')[0], id_.split('/')[1], int(id_.split('/')[2])
+            if 'KTD' in self.dataset_path:
+                class_id0,sub_path, filename, class_label = id_.split('/')[0], id_.split('/')[1], id_.split('/')[2], 2-int(id_.split('/')[3].split('-')[0])
+            else:
+                sub_path, filename, class_label = id_.split('/')[0], id_.split('/')[1], int(id_.split('/')[2])
             # class_id0, sub_path, filename = id_.split('/')[0], id_.split('/')[1], id_.split('/')[2]
             # self.class_id = int(class_id0)
         else:
-            class_id0, sub_path, filename, class_label = id_.split('/')[0], id_.split('/')[1], id_.split('/')[2], int(id_.split('/')[3])
-        img_path = os.path.join(os.path.join(self.dataset_path, sub_path), 'img')
-        label_path = os.path.join(os.path.join(self.dataset_path, sub_path), 'label')
-        crop_path = os.path.join(os.path.join(self.dataset_path, sub_path), 'crop_img')
-        image = cv2.imread(os.path.join(img_path, filename + '.jpg'))
-        mask = cv2.imread(os.path.join(label_path, filename + '.jpg'))
+            if 'KTD' in self.dataset_path:
+                class_id0, sub_path, filename, class_label = id_.split('/')[0], id_.split('/')[1], id_.split('/')[2], 2-int(id_.split('/')[3].split('-')[0])
+            else:
+                class_id0, sub_path, filename, class_label = id_.split('/')[0], id_.split('/')[1], id_.split('/')[2], int(id_.split('/')[3])
+
+        if 'KTD' in self.dataset_path:
+            img_path = os.path.join(self.dataset_path, 'img')
+            label_path = os.path.join(self.dataset_path, 'label')
+            image = cv2.imread(os.path.join(img_path, filename +'_'+id_.split('/')[3]+ '.png'))
+            mask = cv2.imread(os.path.join(label_path, filename +'_'+id_.split('/')[3]+'.png'))
+        else:
+            img_path = os.path.join(os.path.join(self.dataset_path, sub_path), 'img')
+            label_path = os.path.join(os.path.join(self.dataset_path, sub_path), 'label')
+            crop_path = os.path.join(os.path.join(self.dataset_path, sub_path), 'crop_img')
+            image = cv2.imread(os.path.join(img_path, filename + '.jpg'))
+            mask = cv2.imread(os.path.join(label_path, filename + '.jpg'))
 
 
         classes = self.class_dict[sub_path]
         if classes == 2:
             #mask[mask >1] = 1
-            mask[mask < 128] = 0
-            mask[mask >= 128] = 1
+            if 'KTD' in self.dataset_path:
+                mask[mask > 1] = 1
+            else:
+                mask[mask < 128] = 0
+                mask[mask >= 128] = 1
 
         # 裁剪
         # 根据掩码图 从原图中扣出ROI
@@ -499,11 +515,19 @@ class CropImageToImage2D(Dataset):
             mask = torch.zeros((self.one_hot_mask, mask.shape[1], mask.shape[2])).scatter_(0, mask.long(), 1)
 
         mask = mask.unsqueeze(0)
-        return {
-            'crop_image':crop_image,
-            'image_name': filename + '.jpg',
-            'class_label': class_label,
+
+        if 'KTD' in self.dataset_path:
+            return {
+                'crop_image': crop_image,
+                'image_name': filename +'_'+id_.split('/')[3] + '.png',
+                'class_label': class_label,
             }
+        else:
+            return {
+                'crop_image':crop_image,
+                'image_name': filename + '.jpg',
+                'class_label': class_label,
+                }
 
 
 class Logger:
